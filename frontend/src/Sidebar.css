@@ -86,3 +86,16 @@
   background-color: #343a40;
   border-left: 3px solid #ffc107;
 }
+
+.disabled-link {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+  color: #bdbdbd !important;
+  text-decoration: none;
+}
+
+.disabled-link:hover {
+  background-color: transparent !important;
+  color: #bdbdbd !important;
+}
