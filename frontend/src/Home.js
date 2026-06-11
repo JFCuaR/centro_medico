@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import miImagen from './logo.jpg';
 import './Home.css';
@@ -8,7 +8,6 @@ import Navbar from './Navbar';
 
 function Home() {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
-  const [showUpdateMessage, setShowUpdateMessage] = useState(false);
   const { logout } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -20,16 +19,6 @@ function Home() {
     logout();
     navigate('/login');
   };
-
-  // Mostrar mensaje de nueva actualización solo la primera vez
-  useEffect(() => {
-    const hasSeenUpdate = localStorage.getItem('hasSeenSystemUpdate');
-
-    if (!hasSeenUpdate) {
-      setShowUpdateMessage(true);
-      localStorage.setItem('hasSeenSystemUpdate', 'true');
-    }
-  }, []);
 
   return (
     <div>
@@ -53,14 +42,13 @@ function Home() {
           <Navbar toggleSidebar={toggleSidebar} />
 
           <div className="container-fluid">
-            {showUpdateMessage && (
-              <div className="alert alert-success mt-4 text-center" role="alert">
-                🚀 <strong>Nueva actualización disponible:</strong> ahora el sistema cuenta con mejoras en la búsqueda y actualización de pacientes.
-              </div>
-            )}
-
             <div className="image-container mt-4">
               <img src={miImagen} alt="logo" />
+            </div>
+
+            {/* MENSAJE DE NUEVA ACTUALIZACIÓN */}
+            <div className="alert alert-success mt-4 text-center" role="alert">
+              🚀 <strong>Nueva actualización:</strong> el sistema cuenta con mejoras en la búsqueda y actualización de pacientes.
             </div>
           </div>
         </div>
