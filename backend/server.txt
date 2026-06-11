@@ -14,6 +14,8 @@ app.use(express.json());
 // Configuración de la conexión a la base de datos usando Promesas
 const db = require('./db');
 
+
+
 app.get('/test-db', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT COUNT(*) AS total FROM lotes');
@@ -23,6 +25,8 @@ app.get('/test-db', async (req, res) => {
     res.status(500).json({ error: 'Error al conectar con la base de datos' });
   }
 });
+
+
 
 //ruta profile para recuperar quien esta logueado:
 const verificarToken = (req, res, next) => {
@@ -70,96 +74,6 @@ async function calcularTotalCaja(db, idCaja) {
   return Number(tot[0].total || 0);
 }
 
-/*app.post('/login', async (req, res) => {
-  const { username, password } = req.body;
-
-  console.log('Intento de login:', username, password);
-
-  if (!username || !password) {
-    return res.status(400).json({ msg: 'Por favor ingresa usuario y contraseña' });
-  }
-
-  try {
-    if (!db) {
-      return res.status(500).json({ msg: 'Error de conexión a la base de datos' });
-    }
-
-    const [results] = await db.query('SELECT * FROM usuarios WHERE usuario = ?', [username]);
-
-    if (results.length === 0) {
-      return res.status(400).json({ msg: 'Usuario no encontrado' });
-    }
-
-    const user = results[0];
-
-    if (user.estado !== 'activa') {
-      return res.status(403).json({ msg: 'Cuenta desactivada, contacta con el administrador.' });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.contraseña);
-
-    if (!isMatch) {
-      return res.status(400).json({ msg: 'Contraseña incorrecta' });
-    }
-
-    // ✅ Crear token de sesión compatible con tus rutas
-    const token = jwt.sign(
-      {
-        id_usuario: user.id_usuario, // 👈 nombre consistente con tus rutas
-        nombre: user.nombre,
-        rol: user.rol
-      },
-      'secreto',
-      { expiresIn: '24h' }
-    );
-
-    let caja = null;
-
-    // 🔹 Si el usuario requiere caja (farmacéutico o empleado)
-    if (user.rol === 'farmaceutico' || user.rol === 'empleado') {
-      // Verificamos si tiene caja pendiente o abierta
-      const [existente] = await db.query(
-        'SELECT * FROM caja WHERE id_usuario = ? AND estado IN ("pendiente", "abierta") ORDER BY id_caja DESC LIMIT 1',
-        [user.id_usuario]
-      );
-
-      if (existente.length > 0) {
-        caja = existente[0];
-        console.log(`💼 Caja existente (${caja.estado}) para usuario ${user.usuario}`);
-      } else {
-        // Crear nueva caja en estado pendiente
-        const [result] = await db.query(
-          'INSERT INTO caja (id_usuario, fecha_apertura, estado) VALUES (?, NOW(), "pendiente")',
-          [user.id_usuario]
-        );
-        const [nueva] = await db.query('SELECT * FROM caja WHERE id_caja = ?', [result.insertId]);
-        caja = nueva[0];
-        console.log(`🆕 Caja creada en estado pendiente para usuario ${user.usuario}`);
-      }
-    } else {
-      console.log(`ℹ️ Usuario ${user.usuario} con rol "${user.rol}" no requiere caja.`);
-    }
-
-    // ✅ Respuesta incluyendo info de la caja si aplica
-    return res.json({
-      token,
-      rol: user.rol,
-      user: {
-        id_usuario: user.id_usuario, // 👈 ahora el nombre es consistente
-        nombre: user.nombre,
-        usuario: user.usuario,
-        rol: user.rol,
-        estado: user.estado
-      },
-      idCaja: caja ? caja.id_caja : null,
-      estadoCaja: caja ? caja.estado : null,
-      fechaApertura: caja ? caja.fecha_apertura : null
-    });
-  } catch (err) {
-    console.error('Error durante el inicio de sesión:', err);
-    return res.status(500).json({ msg: 'Error del servidor' });
-  }
-});*/
 
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
@@ -193,27 +107,20 @@ app.post('/login', async (req, res) => {
       return res.status(400).json({ msg: 'Contraseña incorrecta' });
     }
 
-    // Crear token
+    // ✅ Crear token de sesión
     const token = jwt.sign({ id: user.id_usuario, rol: user.rol }, 'secreto', { expiresIn: '24h' });
 
-    let caja = null;
+    let caja = null; // Por defecto no hay caja
 
-    // 🔹 SI ES FARMACÉUTICO SOLO BUSCAR caja ABIERTA, NO CREAR NADA
+    // 🔹 Solo abrir caja si el rol es farmaceutico o empleado
     if (user.rol === 'farmaceutico' || user.rol === 'empleado') {
-      const [abiertas] = await db.query(
-        "SELECT * FROM caja WHERE id_usuario=? AND estado='abierta' LIMIT 1",
-        [user.id_usuario]
-      );
-      caja = abiertas.length > 0 ? abiertas[0] : null;
-
-      if (caja) {
-        console.log(`💼 Caja existente retomada para usuario ${user.usuario} (ID: ${user.id_usuario})`);
-      } else {
-        console.log(`ℹ️ Usuario ${user.usuario} no tiene caja abierta. (NO SE CREA EN LOGIN)`);
-      }
+      caja = await getOrCreateCajaAbierta(db, user.id_usuario);
+      console.log(`💼 Caja abierta o retomada para usuario ${user.usuario} (ID: ${user.id_usuario})`);
+    } else {
+      console.log(`ℹ️ Usuario ${user.usuario} con rol "${user.rol}" no requiere caja.`);
     }
-
-    // Respuesta final
+    // ✅ Respuesta incluyendo info de la caja
+    // ✅ Respuesta incluyendo info de la caja solo si aplica
     return res.json({
       token,
       rol: user.rol,
@@ -224,17 +131,17 @@ app.post('/login', async (req, res) => {
         rol: user.rol,
         estado: user.estado
       },
-      idCaja: caja ? caja.id_caja : null,
+      idCaja: caja ? caja.id_caja : null,           // ✅ validación segura
       estadoCaja: caja ? caja.estado : null,
       fechaApertura: caja ? caja.fecha_apertura : null
     });
+
 
   } catch (err) {
     console.error('Error durante el inicio de sesión:', err);
     return res.status(500).json({ msg: 'Error del servidor' });
   }
 });
-
 
 app.get('/profile', verificarToken, async (req, res) => {
   try {
@@ -397,6 +304,8 @@ app.get('/lotes/:id_medicamento', async (req, res) => {
   }
 });
 
+
+
 // Ruta para agregar pacientes y detalles del cliente
 app.post('/pacientes-detalles', async (req, res) => {
   const { paciente, detalleCliente } = req.body;
@@ -558,6 +467,7 @@ app.get('/debug-tables', async (req, res) => {
   }
 });
 
+
 app.get('/lotes/buscar', async (req, res) => {
   const { nombre } = req.query;
 
@@ -595,6 +505,7 @@ app.get('/lotes/prueba', async (req, res) => {
   }
 });
 
+
 /*
 app.get('/buscar_medicamentos', async (req, res) => {
   const { nombre } = req.query;
@@ -623,6 +534,7 @@ app.get('/buscar_medicamentos', async (req, res) => {
     res.status(500).json({ message: 'Error al buscar medicamentos' });
   }
 });
+
 
 /*app.get('/buscar_medicamentos', async (req, res) => {
   const { nombre, codigo_barra } = req.query;
@@ -687,6 +599,7 @@ app.get('/medicamentos/relacionados/:nombre', async (req, res) => {
     res.status(500).json({ message: 'Error al buscar medicamentos relacionados' });
   }
 });
+
 
 /*app.post('/realizarventa', async (req, res) => {
    const cart = req.body;
@@ -787,7 +700,10 @@ app.post('/realizarventa', async (req, res) => {
   }
 });
 
-/*app.get('/caja/estado', verificarToken, async (req, res) => {
+
+
+
+app.get('/caja/estado', verificarToken, async (req, res) => {
   try {
     const idUsuario = req.user.id;
     const caja = await getOrCreateCajaAbierta(db, idUsuario);
@@ -803,7 +719,7 @@ app.post('/realizarventa', async (req, res) => {
     console.error(e);
     res.status(500).json({ error: 'No se pudo obtener estado de caja' });
   }
-});*/
+});
 
 /*app.get('/caja/estado', verificarToken, async (req, res) => {
   try {
@@ -831,8 +747,12 @@ app.post('/realizarventa', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener estado de caja' });
   }
 });*/
+
+
+
+
 // Abrir una caja con monto de apertura
-/*app.post('/caja/abrir', verificarToken, async (req, res) => {
+app.post('/caja/abrir', verificarToken, async (req, res) => {
   const { monto_apertura } = req.body;
   const id_usuario = req.user.id_usuario;
 
@@ -854,140 +774,33 @@ app.post('/realizarventa', async (req, res) => {
     console.error('Error al abrir caja:', error);
     res.status(500).json({ error: 'Error al abrir la caja' });
   }
-});*/
-// No crea caja automática
-app.get('/caja/estado', verificarToken, async (req, res) => {
-  try {
-    const idUsuario = req.user.id;
-
-    const [abierta] = await db.query(
-      "SELECT * FROM caja WHERE id_usuario=? AND estado='abierta' LIMIT 1",
-      [idUsuario]
-    );
-
-    if (abierta.length > 0) {
-      return res.json({ estado: "abierta", caja: abierta[0] });
-    }
-
-    const [pendiente] = await db.query(
-      "SELECT * FROM caja WHERE id_usuario=? AND estado='pendiente' LIMIT 1",
-      [idUsuario]
-    );
-
-    if (pendiente.length > 0) {
-      return res.json({ estado: "pendiente", caja: pendiente[0] });
-    }
-
-    return res.json({ estado: "ninguna", caja: null });
-
-  } catch (e) {
-    res.status(500).json({ error: 'Error obteniendo estado de caja' });
-  }
-});
-
-
-app.post('/caja/crear-pendiente', verificarToken, async (req, res) => {
-  const idUsuario = req.user.id;
-
-  // Verificar si ya tiene una caja abierta
-  const [abierta] = await db.query(
-    "SELECT * FROM caja WHERE id_usuario=? AND estado='abierta'",
-    [idUsuario]
-  );
-
-  if (abierta.length > 0) return res.json({ msg: "caja_abierta" });
-
-  // Verificar si ya tiene pendiente
-  const [pendiente] = await db.query(
-    "SELECT * FROM caja WHERE id_usuario=? AND estado='pendiente'",
-    [idUsuario]
-  );
-
-  if (pendiente.length > 0)
-    return res.json({ msg: "caja_pendiente", id_caja: pendiente[0].id_caja });
-
-  const [nueva] = await db.query(
-    "INSERT INTO caja (id_usuario, estado) VALUES (?, 'pendiente')",
-    [idUsuario]
-  );
-
-  res.json({ msg: "creada", id_caja: nueva.insertId });
-});
-
-
-app.put('/caja/abrir/:idCaja', verificarToken, async (req, res) => {
-  const { idCaja } = req.params;
-  const { monto_apertura } = req.body;
-  const idUsuario = req.user.id;
-
-  try {
-    // Verificar que la caja sea del usuario y esté pendiente
-    const [cajas] = await db.query(
-      "SELECT * FROM caja WHERE id_caja=? AND id_usuario=? AND estado='pendiente'",
-      [idCaja, idUsuario]
-    );
-
-    if (cajas.length === 0) {
-      return res.status(400).json({ msg: "No tienes una caja pendiente para abrir." });
-    }
-
-    // Abrirla
-    await db.query(
-      "UPDATE caja SET estado='abierta', monto_apertura=?, fecha_apertura=NOW() WHERE id_caja=?",
-      [monto_apertura, idCaja]
-    );
-
-    res.json({ msg: "Caja abierta correctamente" });
-
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'No se pudo abrir la caja' });
-  }
 });
 
 
 app.post('/caja/cerrar', verificarToken, async (req, res) => {
   const idUsuario = req.user.id;
   let conn;
-
   try {
+    // Buscar caja abierta
     const [abiertas] = await db.query(
       "SELECT * FROM caja WHERE id_usuario = ? AND estado = 'abierta' LIMIT 1",
       [idUsuario]
     );
-
     if (!abiertas.length) {
-      return res.status(400).json({ error: 'No tienes caja abierta.' });
+      return res.status(400).json({ msg: 'No tenés caja abierta.' });
     }
-
     const caja = abiertas[0];
 
-    // 👀 VER EN CONSOLA QUÉ CAJA ESTAMOS CERRANDO
-    console.log("Cerrando caja:", caja);
-
-    // 👀 Calcular total y mostrar el error si algo falla
-    let total = 0;
-    try {
-      total = await calcularTotalCaja(db, caja.id_caja);
-      console.log("TOTAL CALCULADO:", total);
-    } catch (err) {
-      console.error("❌ ERROR calculando total:", err);
-      return res.status(500).json({
-        error: "ERROR calculando total",
-        detalle: err.toString()
-      });
-    }
+    const total = await calcularTotalCaja(db, caja.id_caja);
 
     conn = await db.getConnection();
     await conn.beginTransaction();
-
     await conn.query(
       `UPDATE caja
        SET estado='cerrada', fecha_cierre=NOW(), total_ventas=?
        WHERE id_caja = ?`,
       [total, caja.id_caja]
     );
-
     await conn.commit();
 
     res.json({
@@ -995,11 +808,10 @@ app.post('/caja/cerrar', verificarToken, async (req, res) => {
       idCaja: caja.id_caja,
       total: total.toFixed(2)
     });
-
   } catch (e) {
     if (conn) await conn.rollback();
-    console.error("❌ ERROR GENERAL:", e);
-    res.status(500).json({ error: 'NO SE PUDO CERRAR CAJA', detalle: e.toString() });
+    console.error(e);
+    res.status(500).json({ error: 'No se pudo cerrar la caja' });
   } finally {
     if (conn) conn.release();
   }
@@ -1038,20 +850,16 @@ app.get('/caja/:idCaja/ventas', verificarToken, async (req, res) => {
   }
 });
 
+
+
 app.get('/cierres', verificarToken, async (req, res) => {
   try {
     const [rows] = await db.query(
-      `SELECT 
-          c.id_caja,
-          u.id_usuario,
-          u.nombre AS usuario,
-          c.fecha_apertura,
-          c.fecha_cierre,
-          c.total_ventas,
-          c.estado
-        FROM caja c
-        JOIN usuarios u ON u.id_usuario = c.id_usuario
-        ORDER BY c.fecha_apertura DESC`
+      `SELECT c.id_caja, u.nombre AS usuario, c.fecha_apertura, c.fecha_cierre,
+              c.total_ventas, c.estado
+       FROM caja c
+       JOIN usuarios u ON u.id_usuario = c.id_usuario
+       ORDER BY c.fecha_apertura DESC`
     );
     res.json(rows);
   } catch (e) {
@@ -1060,157 +868,7 @@ app.get('/cierres', verificarToken, async (req, res) => {
   }
 });
 
-// estas app son las nuevas de caja
-// 📦 Obtener o crear caja
-/*app.get('/caja/estado', verificarToken, async (req, res) => {
-  try {
-    const id_usuario = req.user.id_usuario;
 
-    // Obtener la última caja del usuario
-    const [rows] = await db.query(
-      'SELECT * FROM caja WHERE id_usuario = ? ORDER BY id_caja DESC LIMIT 1',
-      [id_usuario]
-    );
-
-    // Si no existe ninguna caja, crear una pendiente
-    if (rows.length === 0) {
-      await db.query(
-        'INSERT INTO caja (id_usuario, fecha_apertura, estado) VALUES (?, NOW(), "pendiente")',
-        [id_usuario]
-      );
-
-      return res.json({
-        estado: 'pendiente',
-        total_ventas_hasta_ahora: 0,
-        fecha_apertura: new Date(),
-      });
-    }
-
-    const caja = rows[0];
-
-    // Calcular total actual
-    const [ventas] = await db.query(
-      'SELECT SUM(dv.cantidad * dv.precio_unitario) AS total FROM ventas v JOIN detalles_venta dv ON v.id_venta = dv.id_venta WHERE v.id_caja = ?',
-      [caja.id_caja]
-    );
-    const total = ventas[0].total || 0;
-
-    res.json({
-      id_caja: caja.id_caja,
-      estado: caja.estado,
-      fecha_apertura: caja.fecha_apertura,
-      monto_apertura: caja.monto_apertura,
-      total_ventas_hasta_ahora: total.toFixed(2)
-    });
-  } catch (e) {
-    console.error('Error al obtener estado de caja:', e);
-    res.status(500).json({ error: 'No se pudo obtener estado de caja' });
-  }
-});*/
-
-// 🟡 Iniciar caja (estado pendiente)
-/*app.post('/caja/iniciar', verificarToken, async (req, res) => {
-  try {
-    const id_usuario = req.user.id_usuario;
-
-    // Verificar si ya existe una pendiente o abierta
-    const [existe] = await db.query(
-      'SELECT * FROM caja WHERE id_usuario = ? AND estado IN ("pendiente","abierta") ORDER BY id_caja DESC LIMIT 1',
-      [id_usuario]
-    );
-
-    if (existe.length > 0) {
-      return res.json({ message: 'Ya tienes una caja pendiente o abierta.', estado: existe[0].estado });
-    }
-
-    await db.query(
-      'INSERT INTO caja (id_usuario, fecha_apertura, estado) VALUES (?, NOW(), "pendiente")',
-      [id_usuario]
-    );
-
-    res.json({ success: true, message: 'Caja creada en estado pendiente.' });
-  } catch (error) {
-    console.error('Error al iniciar caja:', error);
-    res.status(500).json({ error: 'Error al iniciar caja' });
-  }
-});*/
-
-// 🟢 Abrir caja (pendiente → abierta)
-/*app.put('/caja/abrir', verificarToken, async (req, res) => {
-  const { monto_apertura } = req.body;
-  const id_usuario = req.user.id_usuario;
-
-  try {
-    const [result] = await db.query(
-      'UPDATE caja SET estado = "abierta", monto_apertura = ?, fecha_apertura = NOW() WHERE id_usuario = ? AND estado = "pendiente"',
-      [monto_apertura, id_usuario]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(400).json({ error: 'No hay caja pendiente para abrir.' });
-    }
-
-    res.json({ message: 'Caja abierta con éxito', monto_apertura });
-  } catch (error) {
-    console.error('Error al abrir caja:', error);
-    res.status(500).json({ error: 'Error al abrir la caja' });
-  }
-});*/
-
-// 🔴 Cerrar caja (abierta → cerrada)
-/*app.post('/caja/cerrar', verificarToken, async (req, res) => {
-  try {
-    const id_usuario = req.user.id_usuario;
-
-    // 🧩 Buscar la caja abierta del usuario
-    const [abiertas] = await db.query(
-      "SELECT * FROM caja WHERE id_usuario = ? AND estado = 'abierta' ORDER BY id_caja DESC LIMIT 1",
-      [id_usuario]
-    );
-
-    if (abiertas.length === 0) {
-      return res.status(400).json({ msg: 'No tienes una caja abierta para cerrar.' });
-    }
-
-    const caja = abiertas[0];
-
-    // 💰 Calcular total de ventas asociadas a esa caja
-    const [ventas] = await db.query(
-      `SELECT SUM(dv.cantidad * dv.precio_unitario) AS total
-       FROM ventas v
-       JOIN detalles_venta dv ON v.id_venta = dv.id_venta
-       WHERE v.id_caja = ?`,
-      [caja.id_caja]
-    );
-
-    const totalVentas = ventas[0].total || 0;
-    const montoCierre = (parseFloat(caja.monto_apertura) || 0) + parseFloat(totalVentas);
-
-    // ✅ Actualizar estado de la caja
-    await db.query(
-      `UPDATE caja
-       SET estado = 'cerrada',
-           fecha_cierre = NOW(),
-           total_ventas = ?,
-           monto_cierre = ?
-       WHERE id_caja = ?`,
-      [totalVentas, montoCierre, caja.id_caja]
-    );
-
-    console.log(`✅ Caja ${caja.id_caja} cerrada correctamente por usuario ${id_usuario}`);
-
-    res.json({
-      msg: 'Caja cerrada correctamente',
-      id_caja: caja.id_caja,
-      total_ventas: totalVentas.toFixed(2),
-      monto_cierre: montoCierre.toFixed(2)
-    });
-  } catch (error) {
-    console.error('❌ Error al cerrar caja:', error);
-    res.status(500).json({ error: 'No se pudo cerrar la caja' });
-  }
-});*/
-//aca terminan
 
 app.get('/medicamentos/lista', async (req, res) => {
   try {
@@ -1238,6 +896,8 @@ app.get('/medicamentos/lista', async (req, res) => {
   }
 });
 
+
+
 app.get('/verhistorial', async (req, res) => {
   const query = `SELECT id, nombre_paciente, direccion, fecha_consulta, diagnostico, sintomas, tratamiento, sexo, religion, medico_responsable, medicamentos_recetados, dpi 
                    FROM historial_medico 
@@ -1255,10 +915,10 @@ app.get('/verhistorial', async (req, res) => {
     res.status(500).send('Error al obtener los datos');
   }
 });
+
 // Endpoint para agregar nuevo historial médico
 app.post('/historial-medico', async (req, res) => {
   const {
-    id_turno, // 👈 NUEVO
     nombre_paciente,
     fecha_consulta,
     diagnostico,
@@ -1275,45 +935,26 @@ app.post('/historial-medico', async (req, res) => {
     antecedentes_alergico,
     antecedentes_traumaticos,
     antecedentes_familiares,
-    antecedentes_vicios_y_manias,
-
-    // 👇 SIGNOS VITALES
-    presion_arterial,
-    temperatura,
-    frecuencia_cardiaca,
-    frecuencia_respiratoria,
-    saturacion_oxigeno,
-    glucemia,
-    peso,
-    talla
-
+    antecedentes_vicios_y_manias
   } = req.body;
 
-  const connection = await db.getConnection();
-
   try {
-    await connection.beginTransaction();
-
-    // 1. Verificar o crear paciente
-    const [pacienteRows] = await connection.query(
-      'SELECT id_paciente FROM pacientes WHERE dpi = ?',
-      [dpi]
-    );
-
+    // 1. Verificar si el paciente ya existe
+    const [pacienteRows] = await db.query('SELECT id_paciente FROM pacientes WHERE dpi = ?', [dpi]);
     let id_paciente;
 
     if (pacienteRows.length > 0) {
       id_paciente = pacienteRows[0].id_paciente;
     } else {
-      const [insertPaciente] = await connection.query(`
-        INSERT INTO pacientes (nombre, dpi, telefono, fecha_nacimiento, sexo, religion)
-        VALUES (?, ?, ?, ?, ?, ?)`,
+      const [insertPaciente] = await db.query(`
+          INSERT INTO pacientes (nombre, dpi, telefono, fecha_nacimiento, sexo, religion)
+          VALUES (?, ?, ?, ?, ?, ?)`,
         [nombre_paciente, dpi, telefono, fecha_nacimiento, sexo, religion]
       );
       id_paciente = insertPaciente.insertId;
     }
 
-    // 2. Formatear medicamentos
+    // 2. Formatear los medicamentos recetados
     const medicamentosFormateados = medicamentos_recetados
       .filter(m => m.nombre && typeof m.nombre === 'string')
       .map(m => {
@@ -1325,21 +966,21 @@ app.post('/historial-medico', async (req, res) => {
       })
       .join(' | ');
 
-    // 3. Insertar historial
-    const [historialInsert] = await connection.query(
+    // 3. Insertar en historial_medico
+    const [historialInsert] = await db.query(
       `INSERT INTO historial_medico 
-      (id_paciente, fecha_consulta, diagnostico, sintomas, medico_responsable, medicamentos_recetados)
-      VALUES (?, ?, ?, ?, ?, ?)`,
+        (id_paciente, fecha_consulta, diagnostico, sintomas, medico_responsable, medicamentos_recetados)
+        VALUES (?, ?, ?, ?, ?, ?)`,
       [id_paciente, fecha_consulta, diagnostico, sintomas, medico_responsable, medicamentosFormateados]
     );
 
     const id_historial = historialInsert.insertId;
 
-    // 4. Insertar antecedentes
-    await connection.query(
+    // 4. Insertar antecedentes médicos
+    await db.query(
       `INSERT INTO antecedentes_medicos 
-      (id_historial, antecedentes_medico, antecedentes_quirurgico, antecedentes_alergico, antecedentes_traumaticos, antecedentes_familiares, antecedentes_vicios_y_manias) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        (id_historial, antecedentes_medico, antecedentes_quirurgico, antecedentes_alergico, antecedentes_traumaticos, antecedentes_familiares, antecedentes_vicios_y_manias) 
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         id_historial,
         antecedentes_medico,
@@ -1351,106 +992,17 @@ app.post('/historial-medico', async (req, res) => {
       ]
     );
 
-    // 🔥 5. GUARDAR SIGNOS VITALES (NUEVO)
-    await connection.query(
-      `INSERT INTO signos_vitales (
-        id_paciente,
-        fecha_consulta,
-        presion_arterial,
-        temperatura,
-        frecuencia_cardiaca,
-        frecuencia_respiratoria,
-        saturacion_oxigeno,
-        glucemia,
-        peso,
-        talla
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id_paciente,
-        fecha_consulta,
-        presion_arterial || null,
-        temperatura || null,
-        frecuencia_cardiaca || null,
-        frecuencia_respiratoria || null,
-        saturacion_oxigeno || null,
-        glucemia || null,
-        peso || null,
-        talla || null
-      ]
-    );
-
-    // 🔥 6. ELIMINAR TURNO TEMPORAL (NUEVO)
-    if (id_turno) {
-      await connection.query(
-        `DELETE FROM turnos_tem WHERE id_turno = ?`,
-        [id_turno]
-      );
-    }
-
-    await connection.commit();
-
-    res.status(201).send('Historial, signos vitales y turno procesados correctamente');
+    res.status(201).send('Historial médico y antecedentes guardados exitosamente');
 
   } catch (err) {
-    await connection.rollback();
-    console.error('Error:', err);
-    res.status(500).send('Error al guardar el historial');
-  } finally {
-    connection.release();
+    console.error('Error al guardar el historial médico y antecedentes:', err);
+    res.status(500).send('Error al guardar el historial médico y antecedentes');
   }
 });
 
-app.get('/api/pacientes/:id_paciente/antecedentes', async (req, res) => {
-  try {
-    const { id_paciente } = req.params;
 
-    const sql = `
-      SELECT 
-        am.antecedentes_medico,
-        am.antecedentes_quirurgico,
-        am.antecedentes_alergico,
-        am.antecedentes_traumaticos,
-        am.antecedentes_familiares,
-        am.antecedentes_vicios_y_manias
-      FROM historial_medico hm
-      LEFT JOIN antecedentes_medicos am 
-        ON hm.id = am.id_historial
-      WHERE hm.id_paciente = ?
-      ORDER BY hm.fecha_consulta DESC, hm.id DESC
-      LIMIT 1
-    `;
-
-    const [rows] = await db.query(sql, [id_paciente]);
-
-    if (rows.length === 0) {
-      return res.json({
-        antecedentes_medico: '',
-        antecedentes_quirurgico: '',
-        antecedentes_alergico: '',
-        antecedentes_traumaticos: '',
-        antecedentes_familiares: '',
-        antecedentes_vicios_y_manias: ''
-      });
-    }
-
-    res.json({
-      antecedentes_medico: rows[0].antecedentes_medico || '',
-      antecedentes_quirurgico: rows[0].antecedentes_quirurgico || '',
-      antecedentes_alergico: rows[0].antecedentes_alergico || '',
-      antecedentes_traumaticos: rows[0].antecedentes_traumaticos || '',
-      antecedentes_familiares: rows[0].antecedentes_familiares || '',
-      antecedentes_vicios_y_manias: rows[0].antecedentes_vicios_y_manias || ''
-    });
-  } catch (error) {
-    console.error('Error obteniendo antecedentes del paciente:', error);
-    res.status(500).json({
-      message: 'Error al obtener antecedentes'
-    });
-  }
-});
 
 /*
-
 app.post('/agregar_usuario', async (req, res) => {
   const { nombre, usuario, contrasena, rol, estado } = req.body;
 
@@ -1540,101 +1092,55 @@ app.put('/usuarios/:id', async (req, res) => {
   }
 });
 
+
+
+// Ruta para obtener todos los pacientes y permitir búsqueda por nombre o DPI
+// Ruta para obtener todos los pacientes y permitir búsqueda por nombre o DPI
 // Ruta para obtener todos los pacientes y permitir búsqueda por nombre o DPI
 app.get('/buscar_pacientes', async (req, res) => {
   const { nombre, dpi } = req.query;
 
   let sql = `
-    SELECT 
-      h.id,
-      h.fecha_consulta,
-      h.diagnostico,
-      h.sintomas,
-      h.medicamentos_recetados,
-      h.medico_responsable,
+  SELECT 
+    h.id, h.fecha_consulta, h.diagnostico, h.sintomas, h.medicamentos_recetados, h.medico_responsable,
+    p.id_paciente, p.nombre AS nombre_paciente, p.dpi, p.telefono, p.fecha_nacimiento, p.sexo, p.religion,
+    a.antecedentes_medico, a.antecedentes_quirurgico, a.antecedentes_alergico, 
+    a.antecedentes_traumaticos, a.antecedentes_familiares, a.antecedentes_vicios_y_manias
+  FROM historial_medico h
+  JOIN pacientes p ON h.id_paciente = p.id_paciente
+  LEFT JOIN antecedentes_medicos a ON h.id = a.id_historial
+  WHERE 1 = 1
+`;
 
-      p.id_paciente,
-      p.nombre AS nombre_paciente,
-      p.dpi,
-      p.telefono,
-      p.fecha_nacimiento,
-      p.sexo,
-      p.religion,
-
-      a.antecedentes_medico,
-      a.antecedentes_quirurgico,
-      a.antecedentes_alergico,
-      a.antecedentes_traumaticos,
-      a.antecedentes_familiares,
-      a.antecedentes_vicios_y_manias,
-
-      sv.presion_arterial,
-      sv.temperatura,
-      sv.frecuencia_cardiaca,
-      sv.frecuencia_respiratoria,
-      sv.saturacion_oxigeno,
-      sv.glucemia,
-      sv.peso,
-      sv.talla
-
-    FROM historial_medico h
-    INNER JOIN pacientes p 
-      ON h.id_paciente = p.id_paciente
-
-    LEFT JOIN antecedentes_medicos a 
-      ON h.id = a.id_historial
-
-    LEFT JOIN signos_vitales sv
-      ON sv.id_paciente = p.id_paciente
-      AND sv.id_signo = (
-        SELECT MAX(sv2.id_signo)
-        FROM signos_vitales sv2
-        WHERE sv2.id_paciente = p.id_paciente
-      )
-
-    WHERE 1 = 1
-  `;
 
   const params = [];
 
-  if (nombre && nombre.trim() !== '') {
+  if (nombre) {
     sql += ' AND p.nombre LIKE ?';
-    params.push(`%${nombre.trim()}%`);
+    params.push(`%${nombre}%`);
   }
 
-  if (dpi && dpi.trim() !== '') {
+  if (dpi) {
     sql += ' AND p.dpi LIKE ?';
-    params.push(`%${dpi.trim()}%`);
+    params.push(`%${dpi}%`);
   }
 
-  sql += ' ORDER BY h.fecha_consulta DESC, h.id DESC';
+  sql += ' ORDER BY h.fecha_consulta DESC';
 
   try {
     const [result] = await db.query(sql, params);
 
     const pacientes = result.map((paciente) => ({
       ...paciente,
-      medicamentos_recetados:
-        typeof paciente.medicamentos_recetados === 'string' &&
-        paciente.medicamentos_recetados.trim() !== ''
-          ? paciente.medicamentos_recetados.split('|').map((m) => m.trim()).filter(Boolean)
-          : [],
-
+      medicamentos_recetados: typeof paciente.medicamentos_recetados === 'string'
+        ? paciente.medicamentos_recetados.split(',').map(m => m.trim())
+        : [],
       antecedentes_medico: paciente.antecedentes_medico || '',
       antecedentes_quirurgico: paciente.antecedentes_quirurgico || '',
       antecedentes_alergico: paciente.antecedentes_alergico || '',
       antecedentes_traumaticos: paciente.antecedentes_traumaticos || '',
       antecedentes_familiares: paciente.antecedentes_familiares || '',
-      antecedentes_vicios_y_manias: paciente.antecedentes_vicios_y_manias || '',
-
-      presion_arterial: paciente.presion_arterial || '',
-      temperatura: paciente.temperatura || '',
-      frecuencia_cardiaca: paciente.frecuencia_cardiaca || '',
-      frecuencia_respiratoria: paciente.frecuencia_respiratoria || '',
-      saturacion_oxigeno: paciente.saturacion_oxigeno || '',
-      glucemia: paciente.glucemia || '',
-      peso: paciente.peso || '',
-      talla: paciente.talla || ''
+      antecedentes_vicios_y_manias: paciente.antecedentes_vicios_y_manias || ''
     }));
 
     res.status(200).json(pacientes);
@@ -1644,42 +1150,7 @@ app.get('/buscar_pacientes', async (req, res) => {
   }
 });
 
-app.get('/api/turnos/actual', async (req, res) => {
-  try {
-    const [rows] = await db.query(`
-      SELECT *
-      FROM turnos_tem
-      WHERE LOWER(estado) = 'atendiendo'
-      ORDER BY creado_en ASC
-      LIMIT 1
-    `);
 
-    if (rows.length === 0) {
-      return res.json(null);
-    }
-
-    res.json(rows[0]);
-  } catch (error) {
-    console.error('Error obteniendo turno actual:', error);
-    res.status(500).json({ message: 'Error al obtener turno actual' });
-  }
-});
-
-app.get('/api/turnos/espera', async (req, res) => {
-  try {
-    const [rows] = await db.query(`
-      SELECT *
-      FROM turnos_tem
-      WHERE estado = 'espera'
-      ORDER BY creado_en ASC
-    `);
-
-    res.json(rows);
-  } catch (error) {
-    console.error('Error obteniendo turnos:', error);
-    res.status(500).json({ message: 'Error al obtener turnos' });
-  }
-});
 
 // Función para asegurarnos de enviar solo fecha yyyy-MM-dd
 const formatearFecha = (fecha) => {
@@ -1795,6 +1266,10 @@ app.put('/actualizar_paciente/:id', async (req, res) => {
   }
 });
 
+
+
+
+// Ruta para obtener los pacientes
 // Ruta para obtener los pacientes con sus detalles de tratamiento
 app.get('/verpacientes', async (req, res) => {
   const sql = `
@@ -1812,6 +1287,7 @@ app.get('/verpacientes', async (req, res) => {
     res.status(500).json({ message: 'Error al obtener los pacientes y sus detalles' });
   }
 });
+
 
 app.delete('/eliminar_historial/:id', async (req, res) => {
   const { id } = req.params;
@@ -1843,6 +1319,9 @@ app.delete('/eliminar_historial/:id', async (req, res) => {
     res.status(500).json({ message: 'Error al eliminar historial médico', error });
   }
 });
+
+
+
 
 // Ruta para obtener los pacientes con sus detalles de tratamiento
 app.get('/verpacientes', async (req, res) => {
@@ -1949,6 +1428,7 @@ app.get('/sales/:date', async (req, res) => {
   }
 });
 
+
 // 📆 REPORTE SEMANAL
 app.get('/sales/week/:date', async (req, res) => {
   const selectedDate = req.params.date;
@@ -2012,6 +1492,7 @@ app.get('/sales/week/:date', async (req, res) => {
   }
 });
 
+
 // 📅 REPORTE MENSUAL
 app.get('/sales/month/:date', async (req, res) => {
   const selectedDate = req.params.date;
@@ -2059,6 +1540,9 @@ app.get('/sales/month/:date', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener el reporte mensual' });
   }
 });
+
+
+
 
 app.post('/devolver_producto', async (req, res) => {
   const { id_venta, id_medicamento, cantidad_devuelta } = req.body;
@@ -2127,6 +1611,8 @@ app.get('/buscar_medicamento', async (req, res) => {
   }
 });
 
+
+
 app.get('/buscar_ventas', async (req, res) => {
   const { searchTerm, barcodeSearchTerm } = req.query;
   let query = `
@@ -2168,6 +1654,7 @@ app.get('/buscar_ventas', async (req, res) => {
   }
 });
 
+
 // GET: obtener encamamientos
 app.get('/api/encamamientos', async (req, res) => {
   try {
@@ -2198,6 +1685,9 @@ ORDER BY e.no_cuarto
     res.status(500).json({ error: 'Error al obtener encamamientos' });
   }
 });
+
+
+
 
 // ✅ MODIFICADO: POST registrar encamamiento usando id_paciente
 app.post('/api/encamamientos', async (req, res) => {
@@ -2272,6 +1762,7 @@ app.post('/api/encamamientos', async (req, res) => {
   }
 });
 
+
 app.get('/api/historial/:id', async (req, res) => {
   const { id } = req.params;
 
@@ -2299,6 +1790,10 @@ app.get('/api/historial/:id', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener historial médico' });
   }
 });
+
+
+
+
 
 // PUT: dar salida
 app.put('/api/encamamientos/:numero/salida', async (req, res) => {
@@ -2363,6 +1858,7 @@ app.post('/api/signos-vitales', async (req, res) => {
   }
 });
 
+
 app.post('/api/datos-clinicos', async (req, res) => {
   const {
     id_encamamiento,
@@ -2399,6 +1895,7 @@ app.post('/api/datos-clinicos', async (req, res) => {
   }
 });
 
+
 app.get('/api/encamamientos/:id_encamamiento/fechas-con-datos', async (req, res) => {
   const { id_encamamiento } = req.params;
 
@@ -2422,6 +1919,8 @@ app.get('/api/encamamientos/:id_encamamiento/fechas-con-datos', async (req, res)
     res.status(500).json({ error: 'Error al obtener fechas' });
   }
 });
+
+
 
 app.get('/api/fechas-datos/:id_encamamiento', async (req, res) => {
   const { id_encamamiento } = req.params;
@@ -2459,6 +1958,7 @@ app.get('/api/signos-vitales/:id_encamamiento/:fecha', async (req, res) => {
   }
 });
 
+
 // GET datos clínicos por fecha
 app.get('/api/datos-clinicos/:id_encamamiento/:fecha', async (req, res) => {
   const { id_encamamiento, fecha } = req.params;
@@ -2475,6 +1975,7 @@ app.get('/api/datos-clinicos/:id_encamamiento/:fecha', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener datos clínicos' });
   }
 });
+
 
 // PUT actualizar signos vitales
 app.put('/api/signos-vitales/:id_encamamiento/:fecha', async (req, res) => {
@@ -2512,6 +2013,7 @@ app.put('/api/datos-clinicos/:id_encamamiento/:fecha', async (req, res) => {
 
   res.send('Datos clínicos actualizados');
 });
+
 
 // GET registros con timestamp por fecha
 app.get('/api/encamamientos/:id_encamamiento/registros/:fecha', async (req, res) => {
@@ -2562,6 +2064,8 @@ app.get('/api/encamamientos/:id_encamamiento/registros/:fecha', async (req, res)
   }
 });
 
+
+
 // ✅ NUEVO: autocompletado de pacientes
 app.get('/api/pacientes', async (req, res) => {
   const { nombre } = req.query;
@@ -2579,141 +2083,8 @@ app.get('/api/pacientes', async (req, res) => {
   }
 });
 
-app.get("/api/buscar_pacientes_turnos", async (req, res) => {
-  try {
-    const { nombre } = req.query;
-    console.log("🔎 buscando pacientes:", nombre);
-
-    if (!nombre || nombre.trim().length < 3) {
-      return res.json([]);
-    }
-
-    const texto = `%${nombre.trim()}%`;
-
-    const sql = `
-      SELECT 
-        id_paciente,
-        nombre,
-        dpi,
-        telefono,
-        fecha_nacimiento,
-        sexo
-      FROM pacientes
-      WHERE nombre IS NOT NULL
-        AND TRIM(nombre) <> ''
-        AND nombre LIKE ?
-      ORDER BY nombre ASC
-      LIMIT 10
-    `;
-
-    const [rows] = await db.query(sql, [texto]);
-    console.log("✅ resultados:", rows);
-
-    res.json(rows);
-  } catch (error) {
-    console.error("❌ Error buscando pacientes:", error);
-    res.status(500).json({
-      message: "Error al buscar pacientes",
-      error: error.message,
-    });
-  }
-});
-
-app.post("/api/turnos_tem", async (req, res) => {
-  try {
-    const {
-      id_paciente,
-      nombre_paciente,
-      dpi,
-      telefono,
-      fecha_consulta,
-      sexo,
-      fecha_nacimiento,
-      motivo,
-      presion_arterial,
-      temperatura,
-      frecuencia_cardiaca,
-      frecuencia_respiratoria,
-      saturacion_oxigeno,
-      glucemia,
-      peso,
-      talla,
-      estado,
-    } = req.body;
-
-    const sql = `
-      INSERT INTO turnos_tem (
-        id_paciente,
-        nombre_paciente,
-        dpi,
-        telefono,
-        fecha_consulta,
-        sexo,
-        fecha_nacimiento,
-        motivo,
-        presion_arterial,
-        temperatura,
-        frecuencia_cardiaca,
-        frecuencia_respiratoria,
-        saturacion_oxigeno,
-        glucemia,
-        peso,
-        talla,
-        estado
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-
-    const values = [
-      id_paciente || null,
-      nombre_paciente,
-      dpi,
-      telefono,
-      fecha_consulta,
-      sexo,
-      fecha_nacimiento,
-      motivo || null,
-      presion_arterial || null,
-      temperatura || null,
-      frecuencia_cardiaca || null,
-      frecuencia_respiratoria || null,
-      saturacion_oxigeno || null,
-      glucemia || null,
-      peso || null,
-      talla || null,
-      estado || "espera",
-    ];
-
-    const [result] = await db.query(sql, values);
-
-    res.status(201).json({
-      ok: true,
-      id_turno: result.insertId,
-      message: "Turno creado correctamente",
-    });
-  } catch (error) {
-    console.error("Error creando turno:", error);
-    res.status(500).json({ ok: false, message: "Error al crear turno" });
-  }
-});
-
-app.get("/api/turnos/espera", async (req, res) => {
-  try {
-    const sql = `
-      SELECT *
-      FROM turnos_tem
-      WHERE estado = 'espera'
-      ORDER BY creado_en ASC
-    `;
-
-    const [rows] = await db.query(sql);
-    res.json(rows);
-  } catch (error) {
-    console.error("Error obteniendo turnos:", error);
-    res.status(500).json({ message: "Error al obtener turnos" });
-  }
-});
-
 //De aca en adelante es la agenda
+
 app.post('/api/citas', verificarToken, async (req, res) => {
   try {
     const { id_paciente, fecha, hora, motivo, observaciones } = req.body;
@@ -2736,6 +2107,8 @@ app.post('/api/citas', verificarToken, async (req, res) => {
   }
 });
 
+
+
 app.get('/api/citas', verificarToken, async (req, res) => {
   try {
     const id_usuario = req.user.id;
@@ -2757,6 +2130,8 @@ app.get('/api/citas', verificarToken, async (req, res) => {
   }
 });
 
+
+
 app.get('/api/medicos', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT id_medico, nombre FROM medicos');
@@ -2777,6 +2152,7 @@ app.get('/api/pacientes', async (req, res) => {
   }
 });
 
+
 app.get('/api/turnos', async (req, res) => {
   const turnos = await db.query('SELECT * FROM turnos ORDER BY creado_en ASC');
   res.json(turnos);
@@ -2790,46 +2166,23 @@ app.post('/api/turnos', async (req, res) => {
   res.status(201).json(turnoCreado);
 });
 
+
 // pasa un turno a "atendiendo" y quita cualquier otro activo
 app.put('/api/turnos/:id/atender', async (req, res) => {
-  const connection = await db.getConnection();
-
+  const { id } = req.params;
+  const conn = await db.getConnection();
   try {
-    const { id } = req.params;
-
-    await connection.beginTransaction();
-
-    // Quitar turno actual si existe
-    await connection.query(
-      `UPDATE turnos_tem
-       SET estado = 'espera'
-       WHERE LOWER(estado) = 'atendiendo'`
-    );
-
-    // Poner el nuevo turno como atendiendo
-    const [result] = await connection.query(
-      `UPDATE turnos_tem
-       SET estado = 'atendiendo'
-       WHERE id_turno = ?`,
-      [id]
-    );
-
-    await connection.commit();
-
-    res.json({
-      ok: true,
-      affectedRows: result.affectedRows,
-      message: 'Turno enviado a atendiendo'
-    });
-  } catch (error) {
-    await connection.rollback();
-    console.error('Error al pasar turno a atendiendo:', error);
-    res.status(500).json({
-      ok: false,
-      message: 'Error al pasar turno a atendiendo'
-    });
+    await conn.beginTransaction();
+    await conn.execute('UPDATE turnos SET estado="espera" WHERE estado="atendiendo"'); // deja solo 1 activo
+    await conn.execute('UPDATE turnos SET estado="atendiendo" WHERE id_turno=?', [id]);
+    await conn.commit();
+    res.sendStatus(200);
+  } catch (e) {
+    await conn.rollback();
+    console.error(e);
+    res.status(500).json({ error: 'No se pudo poner en atendiendo' });
   } finally {
-    connection.release();
+    conn.release();
   }
 });
 
@@ -2853,6 +2206,7 @@ app.put('/api/turnos/:id/no-atendido', async (req, res) => {
   }
 });
 
+
 app.get('/buscar_antecedentes', async (req, res) => {
   const { tipo, termino } = req.query;
 
@@ -2875,20 +2229,6 @@ app.get('/buscar_antecedentes', async (req, res) => {
     res.status(500).json({ error: 'Error al buscar antecedentes' });
   }
 });
-app.get("/api/turnos", async (req, res) => {
-  try {
-    const [rows] = await db.query(
-      "SELECT id_turno, nombre_paciente, motivo, estado, creado_en FROM turnos ORDER BY creado_en ASC"
-    );
-
-    res.json(rows);
-  } catch (error) {
-    console.error("❌ Error /api/turnos:", error);
-    res.status(500).json({ error: "Error al obtener turnos" });
-  }
-});
-
-
 
 
 

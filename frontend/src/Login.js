@@ -2,6 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AuthContext from './AuthContext';
 import axios from 'axios';
+import miImagen from './logo.jpg';
 import './Login.css';  // Estilos personalizados
 
 const URL = process.env.REACT_APP_URL_BACKEND || 'http://localhost:3001'
@@ -23,19 +24,30 @@ const Login = () => {
                 password
             });
 
-            if (response.data.token) {
-                const token = response.data.token;
-                const rol = response.data.rol; // Obtenemos el rol del usuario
-                login(token); // Guarda el token en el contexto o localStorage
+           if (response.data.token) {
+    const token = response.data.token;
+    const rol = response.data.rol;
+    
+    // 🔹 Incluir los datos de caja que vienen del backend
+    const user = {
+        ...response.data.user,
+        idCaja: response.data.idCaja || null,
+        estadoCaja: response.data.estadoCaja || 'pendiente',
+        fechaApertura: response.data.fechaApertura || null
+    };
+
+    login(token, user);
 
                 // Redirigir según el rol
-                if (rol === 'empleado') {
-                    navigate('/homeFarmacia'); // Redirige a HomeFarmacia.js si el rol es farmaceutico
+                if (rol === 'farmaceutico') {
+                    navigate('/home'); // Redirige a HomeFarmacia.js si el rol es farmaceutico
                 } else if (rol === 'admin') {
                     navigate('/home'); // Redirige a Home.js si el rol es doctor
-                } else {
-                    alert('Rol desconocido, contacta con el administrador');
-                }
+                } else if (rol === 'doctor') {
+                    navigate('/home'); // Redirige a Home.js si el rol es doctor
+                } else if (rol == 'TV'){
+                    navigate('/VerTurnosPublico')
+                }else {alert('Rol desconocido, contacta con el administrador');}
             }
         } catch (error) {
             if (error.response) {
@@ -55,7 +67,9 @@ const Login = () => {
     return (
         <div className="login-container">
             <div className="login-card">
-                <h2 className="text-center mb-4">Login</h2>
+                <div className="image-container mt-4">
+                              <img src={miImagen} alt="logo" />
+                            </div>
                 <form onSubmit={handleSubmit}>
                     <div className="mb-3">
                         <label htmlFor="email" className="form-label">Usuario</label>

@@ -1,0 +1,13 @@
+.card {
+    border-radius: 10px;
+    transition: transform 0.2s ease;
+  }
+  
+  .card:hover {
+    transform: scale(1.02);
+  }
+  
+  #page-content-wrapper {
+    margin-left: 250px;
+  }
+  

@@ -1,0 +1,43 @@
+import React from 'react';
+import { Link } from 'react-router-dom';
+import './Sidebar.css';
+
+const Sidebar = ({ isOpen }) => {
+  return (
+    <div
+      id="sidebar-wrapper"
+      className={`d-flex flex-column ${isOpen ? 'open' : ''}`}
+    >
+      <div className="sidebar-header text-white text-center py-3">
+        <h5 className="mb-1">CENTRO MÉDICO</h5>
+        <h6 className="mb-4">JERUSALEM</h6>
+      </div>
+
+      <div className="list-group list-group-flush flex-grow-1">
+        <Link to="/Home" className="list-group-item list-group-item-action bg-dark text-white">Inicio</Link>
+        <Link to="/AgregarUsuario" className="list-group-item list-group-item-action bg-dark text-white">Usuario</Link>
+        <Link to="/Proveedores" className="list-group-item list-group-item-action bg-dark text-white">Proveedores</Link>
+        <Link to="/Agregar_productos" className="list-group-item list-group-item-action bg-dark text-white">Agregar Medicamentos</Link>
+        <Link to="/ventas" className="list-group-item list-group-item-action bg-dark text-white">Farmacia</Link>
+        <Link to="/Devoluciones" className="list-group-item list-group-item-action bg-dark text-white">Devoluciones</Link>
+        <Link to="/Historial" className="list-group-item list-group-item-action bg-dark text-white">Historial Médico</Link>
+        <Link to="/Buscar_paciente" className="list-group-item list-group-item-action bg-dark text-white">Buscar Paciente</Link>
+        <Link to="/Reportes" className="list-group-item list-group-item-action bg-dark text-white">Reportes</Link>
+        <Link to="/Encamamiento" className="list-group-item list-group-item-action bg-dark text-white">Encamamiento</Link>
+        <Link to="/Agenda" className="list-group-item list-group-item-action bg-dark text-white">Agenda</Link>
+        <Link to="/Medicamentos" className="list-group-item list-group-item-action bg-dark text-white">Medicamentos</Link>
+        <Link to="/Turnos" className="list-group-item list-group-item-action bg-dark text-white">Turnos</Link>
+        <Link to="/VerTurnos" className="list-group-item list-group-item-action bg-dark text-white">Ver Turnos</Link>
+        <Link to="/VerTurnosPublico" className="list-group-item list-group-item-action bg-dark text-white">Ver Turnos Publico</Link>
+      </div>
+
+      <div className="sidebar-footer text-white text-center p-3 mt-auto">
+        <small className="d-block">Sistema clínico</small>
+        <small className="d-block">JFCuaR</small>
+        <small className="d-block">Contacto: (+502) 4746-1123</small>
+      </div>
+    </div>
+  );
+};
+
+export default Sidebar;

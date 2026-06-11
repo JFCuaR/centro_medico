@@ -1,0 +1,88 @@
+/* Estructura general */
+#wrapper {
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
+  }
+  
+  /* Sidebar base (siempre visible en desktop) */
+  #sidebar-wrapper {
+    width: 250px;
+    background-color: #343a40;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    transition: transform 0.3s ease;
+  }
+  
+  /* Contenido principal */
+  #page-content-wrapper {
+    flex-grow: 1;
+    margin-left: 250px;
+    transition: margin-left 0.3s ease;
+    width: 100%;
+  }
+  
+  /* Responsive para móviles */
+  @media (max-width: 768px) {
+    #sidebar-wrapper {
+      transform: translateX(-250px); /* Oculto por defecto en móvil */
+      position: fixed;
+    }
+  
+    #sidebar-wrapper.open {
+      transform: translateX(0); /* Mostrar cuando está abierto */
+    }
+  
+    #page-content-wrapper {
+      margin-left: 0 !important; /* Ocupa todo el ancho */
+    }
+  }
+  /* ==== NUEVO DISEÑO DE SIDEBAR ==== */
+.menu-section {
+  border-bottom: 1px solid #444;
+  transition: background 0.3s ease;
+}
+
+.menu-title {
+  padding: 12px 16px;
+  color: #fff;
+  font-weight: 600;
+  background-color: #212529;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.menu-title:hover {
+  background-color: #495057;
+}
+
+/* 🔽 Submenú oculto por defecto */
+.menu-content {
+  display: none;
+  flex-direction: column;
+  background-color: #2b2f36;
+  padding-left: 12px;
+  transition: all 0.3s ease-in-out;
+}
+
+/* ✨ Mostrar al pasar el mouse */
+.menu-section:hover .menu-content {
+  display: flex;
+}
+
+.submenu-item {
+  color: #ccc;
+  padding: 10px 18px;
+  text-decoration: none;
+  transition: all 0.2s ease-in-out;
+  border-left: 3px solid transparent;
+}
+
+.submenu-item:hover {
+  color: #fff;
+  background-color: #343a40;
+  border-left: 3px solid #ffc107;
+}

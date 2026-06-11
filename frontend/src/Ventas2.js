@@ -77,13 +77,14 @@ function Home() {
   }, []);
 
   const filteredMedicamentos = medicamentos
-    .filter((medicamento) =>
-      medicamento.nombre.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      medicamento.Descripcion.toLowerCase().includes(descriptionSearchTerm.toLowerCase()) &&
-      medicamento.codigo_barra.includes(barcodeSearchTerm) &&
-      medicamento.stock > 0
-    )
-    .sort((a, b) => new Date(a.Fecha_vencimiento) - new Date(b.Fecha_vencimiento));
+  .filter((medicamento) =>
+    (!searchTerm || medicamento.nombre?.toLowerCase().includes(searchTerm.toLowerCase())) &&
+    (!descriptionSearchTerm || medicamento.Descripcion?.toLowerCase().includes(descriptionSearchTerm.toLowerCase())) &&
+    (!barcodeSearchTerm || medicamento.codigo_barra?.includes(barcodeSearchTerm)) &&
+    medicamento.stock > 0
+  )
+  .sort((a, b) => new Date(a.Fecha_vencimiento) - new Date(b.Fecha_vencimiento));
+
 
   // Función para manejar el cambio de cantidad
   const handleQuantityChange = (id_medicamento, value) => {

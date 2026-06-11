@@ -1,0 +1,160 @@
+/* Layout base */
+.tv-root {
+  min-height: 100vh;
+  background: #0f1924;
+  color: #e6e9ef;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.tv-container {
+  width: 100%;
+  max-width: 1400px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 16px;
+}
+
+/* Header */
+.tv-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #1b232e;
+  padding-bottom: 8px;
+}
+
+.tv-header h1 {
+  font-size: clamp(22px, 3vw, 32px);
+  margin: 0;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+}
+
+.tv-clock {
+  font-size: clamp(50px, 2vw, 18px);
+  color: #ffffff;
+}
+
+/* Main sections */
+.tv-main {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+}
+
+.tv-actual {
+  display: grid;
+  align-items: center;
+}
+
+/* Cards */
+.tv-card {
+  background: #111823;
+  border: 1px solid #1b2430;
+  border-radius: 16px;
+  padding: clamp(16px, 3vw, 28px);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+}
+
+.tv-card-actual {
+  display: grid;
+  gap: 10px;
+  text-align: center;
+}
+
+.tv-actual-nombre {
+  font-size: clamp(28px, 5vw, 64px);
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.tv-actual-motivo {
+  font-size: clamp(16px, 2.4vw, 24px);
+  color: #b7c0cc;
+}
+
+.tv-badge {
+  display: inline-block;
+  margin: 0 auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #1a7f37;
+  color: #eafff1;
+  font-weight: 700;
+  font-size: clamp(12px, 2vw, 14px);
+  letter-spacing: 1px;
+}
+
+/* Lista de espera */
+.tv-lista h2 {
+  margin: 0 0 8px 0;
+  font-size: clamp(16px, 2.5vw, 22px);
+  color: #c9d1d9;
+  font-weight: 700;
+}
+
+.tv-lista-vacia {
+  border: 1px dashed #2a3442;
+  border-radius: 12px;
+  padding: 18px;
+  color: #9aa4b2;
+  text-align: center;
+}
+
+.tv-ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.tv-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #0f1622;
+  border: 1px solid #1b2430;
+  border-radius: 12px;
+}
+
+.tv-item-nombre {
+  font-weight: 650;
+  font-size: clamp(25px, 2.2vw, 18px);
+}
+
+.tv-item-motivo {
+  font-size: clamp(20px, 2vw, 16px);
+  color: #9aa4b2;
+}
+
+.tv-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #d4a72c;
+  justify-self: end;
+}
+
+/* Footer */
+.tv-footer {
+  color: #8b96a5;
+  text-align: center;
+  font-size: 12px;
+  border-top: 1px solid #1b2430;
+  padding-top: 8px;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .tv-main {
+    grid-template-columns: 1fr;
+  }
+}

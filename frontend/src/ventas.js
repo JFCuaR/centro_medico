@@ -6,10 +6,12 @@ import jsPDF from 'jspdf';
 import AuthContext from './AuthContext';
 import 'jspdf-autotable';
 import './Home.css';
+import Sidebar from './sidebar'; // ← Importar 
+import Navbar from './Navbar';
 
 const URL = process.env.REACT_APP_URL_BACKEND || 'http://localhost:3001'
 
-function Home() {
+function Ventas() {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [medicamentos, setMedicamentos] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,6 +26,11 @@ function Home() {
   const [barcodeSearchTerm, setBarcodeSearchTerm] = useState('');
   const [quantities, setQuantities] = useState({}); // Estado para manejar las cantidades
   const { logout } = useContext(AuthContext);
+  const [estadoCaja, setEstadoCaja] = useState(null);
+  const [estadoCajaInfo, setEstadoCajaInfo] = useState(null);
+  const [totalCaja, setTotalCaja] = useState(0);
+  const [fechaApertura, setFechaApertura] = useState(null);
+
   const navigate = useNavigate();
 
   const toggleSidebar = () => {
@@ -32,34 +39,35 @@ function Home() {
 
   const fetchMedicamentos = async () => {
     try {
-      const response = await axios.get(`${URL}/vermedicamentos`);
-      const allMedicamentos = response.data;
+      const response = await axios.get(`${URL}/lote/todo`);
+      const lotes = response.data;
+      console.log("Lotes recibidos del backend:", lotes);
 
-      const groupedByNameAndBarcode = allMedicamentos.reduce((acc, medicamento) => {
-        const key = `${medicamento.nombre.trim()}_${medicamento.codigo_barra}`;
-        if (!acc[key]) {
-          acc[key] = [];
+      // Filtrar lotes con stock > 0
+      const lotesConStock = lotes.filter(lote => lote.stock > 0);
+
+      // Identificar lote con fecha más cercana por cada código de barras
+      const loteMasCercanoPorCodigo = lotesConStock.reduce((acc, lote) => {
+        const key = lote.codigo_barra;
+        if (!acc[key] || new Date(lote.fecha_vencimiento) < new Date(acc[key].fecha_vencimiento)) {
+          acc[key] = lote;
         }
-        acc[key].push(medicamento);
         return acc;
       }, {});
 
-      const updatedMedicamentos = Object.values(groupedByNameAndBarcode)
-        .flatMap(group => {
-          const sortedGroup = group.sort((a, b) => new Date(a.Fecha_vencimiento) - new Date(b.Fecha_vencimiento));
-          return sortedGroup.map((medicamento, index) => ({
-            ...medicamento,
-            isButtonEnabled: index === 0
-          }));
-        });
+      // Marcar como bloqueados los lotes que no sean el más cercano
+      const lotesActualizados = lotesConStock.map(lote => ({
+        ...lote,
+        bloqueado: loteMasCercanoPorCodigo[lote.codigo_barra].id_lote !== lote.id_lote
+      }));
 
-      setMedicamentos(updatedMedicamentos);
-
-      const lowStock = updatedMedicamentos.filter(medicamento => medicamento.stock > 0 && medicamento.stock <= 5);
+      // Detectar medicamentos con stock bajo (<=5)
+      const lowStock = lotesActualizados.filter(lote => lote.stock <= 5);
       setLowStockMedicamentos(lowStock);
 
-      const nearExpiry = updatedMedicamentos.filter(med => {
-        const expiryDate = new Date(med.Fecha_vencimiento);
+      // Detectar medicamentos cerca de vencer (dentro de 3 meses)
+      const nearExpiry = lotesActualizados.filter(lote => {
+        const expiryDate = new Date(lote.fecha_vencimiento);
         const today = new Date();
         const threeMonthsLater = new Date();
         threeMonthsLater.setMonth(today.getMonth() + 3);
@@ -67,74 +75,86 @@ function Home() {
       });
       setNearExpiryMedicamentos(nearExpiry);
 
+      setMedicamentos(lotesActualizados);
+
     } catch (error) {
       console.error('Error al obtener los productos:', error);
     }
   };
 
+
+
   useEffect(() => {
     fetchMedicamentos();
   }, []);
 
+  const clean = (text) => (text || '').trim().toLowerCase();
+
   const filteredMedicamentos = medicamentos
-    .filter((medicamento) =>
-      medicamento.nombre.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      medicamento.Descripcion.toLowerCase().includes(descriptionSearchTerm.toLowerCase()) &&
-      medicamento.codigo_barra.includes(barcodeSearchTerm) &&
-      medicamento.stock > 0
+    .filter((lote) =>
+      (!searchTerm || clean(lote.nombre).includes(clean(searchTerm))) &&
+      (!descriptionSearchTerm || clean(lote.descripcion).includes(clean(descriptionSearchTerm))) &&
+      (!barcodeSearchTerm || (lote.codigo_barra || '').includes(barcodeSearchTerm.trim()))
     )
-    .sort((a, b) => new Date(a.Fecha_vencimiento) - new Date(b.Fecha_vencimiento));
+    .sort((a, b) => new Date(a.fecha_vencimiento) - new Date(b.fecha_vencimiento));
+
+
+
+
 
   // Función para manejar el cambio de cantidad
-  const handleQuantityChange = (id_medicamento, value) => {
+  const handleQuantityChange = (id_lote, value) => {
     setQuantities((prevQuantities) => ({
       ...prevQuantities,
-      [id_medicamento]: value // Almacena el valor actual, incluso si es vacío
+      [id_lote]: value
     }));
   };
+
 
   // Función para manejar el enfoque (focus) en el input
-  const handleFocus = (id_medicamento) => {
+  const handleFocus = (id_lote) => {
     setQuantities((prevQuantities) => ({
       ...prevQuantities,
-      [id_medicamento]: '' // Borra el valor cuando el campo recibe el foco
+      [id_lote]: ''
     }));
   };
+
 
   // Función para manejar cuando se pierde el enfoque (blur)
-  const handleBlur = (id_medicamento) => {
+  const handleBlur = (id_lote) => {
     setQuantities((prevQuantities) => ({
       ...prevQuantities,
-      [id_medicamento]: prevQuantities[id_medicamento] === '' ? 1 : prevQuantities[id_medicamento] // Si está vacío, vuelve a 1
+      [id_lote]: prevQuantities[id_lote] === '' ? 1 : prevQuantities[id_lote]
     }));
   };
 
-  const addToCart = (medicamento, cantidad) => {
+
+  const addToCart = (lote, cantidad) => {
     setCart((prevCart) => {
-      const existingItem = prevCart.find(item => item.nombre.trim().toLowerCase() === medicamento.nombre.trim().toLowerCase());
+      const existingItem = prevCart.find(item => item.id_lote === lote.id_lote);
 
       if (existingItem) {
         return prevCart.map(item =>
-          item.nombre.trim().toLowerCase() === medicamento.nombre.trim().toLowerCase()
+          item.id_lote === lote.id_lote
             ? { ...item, cantidad: item.cantidad + cantidad }
             : item
         );
       } else {
-        return [...prevCart, { ...medicamento, cantidad: cantidad }];
+        return [...prevCart, { ...lote, cantidad }];
       }
     });
   };
 
-  const removeFromCart = (id_medicamento) => {
-    setCart((prevCart) => {
-      const updatedCart = prevCart.filter(item => item.id_medicamento !== id_medicamento);
 
+  const removeFromCart = (id_lote) => {
+    setCart((prevCart) => {
+      const updatedCart = prevCart.filter(item => item.id_lote !== id_lote);
       const updatedTotalPrice = updatedCart.reduce((sum, item) => sum + (parseFloat(item.precio_venta) * item.cantidad), 0);
       setTotalPrice(updatedTotalPrice);
-
       return updatedCart;
     });
   };
+
 
   const calculateChange = () => {
     if (paymentAmount !== '' && !isNaN(paymentAmount)) {
@@ -179,20 +199,30 @@ function Home() {
         cancelButtonText: 'Cancelar',
         reverseButtons: true
       });
-  
+
       if (result.isConfirmed) {
+        if (estadoCaja !== 'abierta') {
+          Swal.fire('Caja cerrada', 'No puedes realizar ventas si la caja está cerrada.', 'error');
+          return;
+        }
+
         if (change !== null) {
-          const consolidatedCart = cart.map(item => ({
-            ...item,
+          const payload = cart.map(item => ({
+            id_lote: item.id_lote,
             cantidad: item.cantidad || 1
           }));
-          await axios.post(`${URL}/realizarventa`, consolidatedCart);
-  
+
+          await axios.post(`${URL}/realizarventa`, payload, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          });
+
+
+
           setCart([]);
           setTotalPrice(0);
           setPaymentAmount('');
           setChange(null);
-  
+
           await fetchMedicamentos();
 
           const printReceipt = await Swal.fire({
@@ -204,9 +234,10 @@ function Home() {
             cancelButtonText: 'No Imprimir',
             reverseButtons: true
           });
-  
+
           if (printReceipt.isConfirmed) {
-            imprimirRecibo(consolidatedCart);
+            imprimirRecibo(cart);
+
           }
         }
       }
@@ -249,6 +280,115 @@ function Home() {
     doc.save('recibo_venta.pdf');
   };
 
+ const abrirCajaManual = async () => {
+  try {
+
+    if (!estadoCajaInfo || !estadoCajaInfo.id_caja) {
+      Swal.fire("Error", "No se encontró la caja pendiente.", "error");
+      return;
+    }
+
+    const { value: monto } = await Swal.fire({
+      title: 'Monto de apertura',
+      input: 'number',
+      inputAttributes: { min: 0 },
+      showCancelButton: true,
+      confirmButtonText: 'Abrir',
+      cancelButtonText: 'Cancelar',
+    });
+
+    if (monto === '' || monto === null || isNaN(monto)) {
+      return;
+    }
+
+    await axios.put(
+      `${URL}/caja/abrir/${estadoCajaInfo.id_caja}`,
+      { monto_apertura: monto },
+      {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      }
+    );
+
+    await Swal.fire('Caja abierta', 'Puedes comenzar a vender.', 'success');
+
+    const res = await axios.get(`${URL}/caja/estado`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    });
+
+    setEstadoCaja(res.data.estado);
+    setEstadoCajaInfo(res.data.caja);
+
+    if (res.data.caja) {
+      setFechaApertura(res.data.caja.fecha_apertura);
+      setTotalCaja(res.data.caja.total_ventas || 0);
+    }
+
+  } catch (error) {
+    console.error(error);
+    Swal.fire('Error', 'No se pudo abrir la caja', 'error');
+  }
+};
+
+  useEffect(() => {
+  const verificarCaja = async () => {
+    try {
+      const res = await axios.get(`${URL}/caja/estado`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      console.log('Estado caja:', res.data);
+
+      const { estado, caja } = res.data;
+
+      // 👉 Ya abierta
+      if (estado === 'abierta') {
+        setEstadoCaja('abierta');
+        setEstadoCajaInfo(caja);   // <--- AQUI
+
+        if (caja) {
+          setFechaApertura(caja.fecha_apertura);
+          setTotalCaja(caja.total_ventas || 0);
+        }
+        return;
+      }
+
+      // 👉 Pendiente
+      if (estado === 'pendiente') {
+        setEstadoCaja('pendiente');
+        setEstadoCajaInfo(caja);  // <--- AQUI
+
+        return; // No preguntamos nada aquí porque ya tienes el botón
+      }
+
+      // 👉 Cerrada o ninguna → crear pendiente
+      if (estado === 'cerrada' || estado === 'ninguna') {
+        await axios.post(
+          `${URL}/caja/crear-pendiente`,
+          {},
+          { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+        );
+
+        // Consultar de nuevo
+        const res2 = await axios.get(`${URL}/caja/estado`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+
+        setEstadoCaja(res2.data.estado);
+        setEstadoCajaInfo(res2.data.caja);  // <--- AQUI TAMBIÉN
+
+      }
+
+    } catch (error) {
+      console.error(error);
+      Swal.fire('Error', 'No se pudo verificar la caja', 'error');
+    }
+  };
+
+  verificarCaja();
+}, []);
+
+
+
   return (
     <div>
       <meta charSet="UTF-8" />
@@ -256,47 +396,53 @@ function Home() {
       <title>Sidebar Template</title>
       <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet" />
       <div className={`d-flex ${isSidebarOpen ? 'toggled' : ''}`} id="wrapper">
-        <div className={`bg-dark border-right ${isSidebarOpen ? 'sidebar-open' : ''}`} id="sidebar-wrapper">
-          <div className="sidebar-heading text-white"><br /><br />CENTRO MEDICO</div>
-          <div className="sidebar-heading text-white"> JERUSALEM <br /><br /></div>
-          <div className="list-group list-group-flush">
-          <Link to="/Home" className="list-group-item list-group-item-action bg-dark text-white">
-              Inicio
-             </Link>
-             <Link to="/AgregarUsuario" className="list-group-item list-group-item-action bg-dark text-white">
-              Agregar Usuario
-             </Link>
-            <Link to="/Agregar_productos" className="list-group-item list-group-item-action bg-dark text-white">
-              Agregar Medicamentos
-            </Link>
-            <Link to="/ventas" className="list-group-item list-group-item-action bg-dark text-white">
-              Farmacia
-            </Link>
-            <Link to="/Devoluciones" className="list-group-item list-group-item-action bg-dark text-white">
-              Devoluciones
-            </Link>
-            <Link to="/Historial" className="list-group-item list-group-item-action bg-dark text-white">
-              Historial Medico
-            </Link>
-            <Link to="/Buscar_paciente" className="list-group-item list-group-item-action bg-dark text-white">
-              Buscar paciente
-            </Link>
-            <Link to="/Reportes" className="list-group-item list-group-item-action bg-dark text-white">
-              Reportes
-            </Link>
-          </div>          
-        </div>
+        <Sidebar isOpen={isSidebarOpen} />
+        {isSidebarOpen && (
+          <div className="overlay" onClick={() => setSidebarOpen(false)}></div>
+        )}
         <div id="page-content-wrapper">
-          <nav className="navbar navbar-expand-lg navbar-light bg-light border-bottom">
-            <button className="btn btn-primary" id="menu-toggle" onClick={toggleSidebar}>
-              Menu
-            </button>
-            <button className="btn btn-danger ml-auto" onClick={handleLogout}>
-              Cerrar Sesión
-            </button>
-          </nav>
+          <Navbar toggleSidebar={toggleSidebar} />
+
           <div className="container-fluid">
             <h2>Medicamentos</h2>
+
+            {estadoCaja && (
+              <div className="alert alert-info text-center mt-3">
+                <h5>
+                  💼 Caja{' '}
+                  <strong>
+                    {estadoCaja === 'abierta'
+                      ? 'Abierta'
+                      : estadoCaja === 'pendiente'
+                        ? 'Pendiente'
+                        : estadoCaja === 'cerrada'
+                          ? 'Cerrada'
+                          : estadoCaja}
+                  </strong>
+                </h5>
+
+                {fechaApertura && (
+                  <p>📅 Apertura: {new Date(fechaApertura).toLocaleString()}</p>
+                )}
+
+                {estadoCaja === 'abierta' && (
+                  <p>💰 Total actual: Q{Number(totalCaja).toFixed(2)}</p>
+                )}
+
+                {/* ⬇️ Mostrar BOTÓN solo si la caja está pendiente */}
+                {estadoCaja === 'pendiente' && (
+                  <button
+                    className="btn btn-primary mt-2"
+                    onClick={abrirCajaManual}
+                  >
+                    Abrir Caja
+                  </button>
+                )}
+              </div>
+            )}
+
+
+
 
             <div className="row">
               <div className="col-md-2 mb-3">
@@ -340,45 +486,51 @@ function Home() {
                     <th>Descripción</th>
                     <th>Precio Venta</th>
                     <th>Fecha de Vencimiento</th>
+                    <th>Proveedor</th>
                     <th>Acción</th>
                   </tr>
                 </thead>
+
+
                 <tbody>
-                  {filteredMedicamentos.map((medicamento) => {
-                    const currentQuantity = quantities[medicamento.id_medicamento] ?? 1; // Muestra 1 si no hay un valor actual
+                  {filteredMedicamentos.map((lote) => {
+                    const currentQuantity = quantities[lote.id_lote] ?? 1;
 
                     return (
-                      <tr key={medicamento.id_medicamento}>
-                        <td>{medicamento.modulo}</td>
-                        <td>{medicamento.codigo_barra}</td>
-                        <td>{medicamento.nombre}</td>
-                        <td>{medicamento.stock}</td>
-                        <td>{medicamento.Descripcion}</td>
-                        <td>Q{parseFloat(medicamento.precio_venta).toFixed(2)}</td>
-                        <td>{new Date(medicamento.Fecha_vencimiento).toLocaleDateString()}</td>
+                      <tr key={lote.id_lote}>
+                        <td>{lote.modulo}</td>
+                        <td>{lote.codigo_barra}</td>
+                        <td>{lote.nombre}</td>
+                        <td>{lote.stock}</td>
+                        <td>{lote.descripcion}</td>
+                        <td>Q{parseFloat(lote.precio_venta).toFixed(2)}</td>
+                        <td>{new Date(lote.fecha_vencimiento).toLocaleDateString()}</td>
+                        <td>{lote.proveedor_nombre}</td>
                         <td>
                           <input
                             type="number"
                             min="1"
-                            max={medicamento.stock}
+                            max={lote.stock}
                             value={currentQuantity}
-                            onChange={(e) => handleQuantityChange(medicamento.id_medicamento, e.target.value)}
-                            onFocus={() => handleFocus(medicamento.id_medicamento)} // Borra el valor al hacer clic
-                            onBlur={() => handleBlur(medicamento.id_medicamento)} // Vuelve a 1 si está vacío al perder el foco
+                            onChange={(e) => handleQuantityChange(lote.id_lote, e.target.value)}
+                            onFocus={() => handleFocus(lote.id_lote)}
+                            onBlur={() => handleBlur(lote.id_lote)}
                             className="form-control"
                             style={{ width: '80px', display: 'inline-block', marginRight: '10px' }}
                           />
                           <button
                             className="btn btn-success"
-                            onClick={() => addToCart(medicamento, currentQuantity)}
-                            disabled={!medicamento.isButtonEnabled}
+                            onClick={() => addToCart(lote, parseInt(currentQuantity))}
+                            disabled={lote.bloqueado} // <-- Bloquear si no es el más cercano
                           >
-                            Agregar al Carrito
+                            {lote.bloqueado ? 'Esperar turno' : 'Agregar al Carrito'}
                           </button>
+
                         </td>
                       </tr>
                     );
-                  })}
+                  })
+                  }
                 </tbody>
               </table>
             </div>
@@ -397,7 +549,7 @@ function Home() {
                 </thead>
                 <tbody>
                   {cart.map((item) => (
-                    <tr key={item.id_medicamento}>
+                    <tr key={item.id_lote}>
                       <td>{item.nombre}</td>
                       <td>{item.cantidad}</td>
                       <td>Q{parseFloat(item.precio_venta).toFixed(2)}</td>
@@ -405,7 +557,7 @@ function Home() {
                       <td>
                         <button
                           className="btn btn-danger"
-                          onClick={() => removeFromCart(item.id_medicamento)}
+                          onClick={() => removeFromCart(item.id_lote)}
                         >
                           Eliminar
                         </button>
@@ -457,17 +609,23 @@ function Home() {
               <div className="alert alert-danger mt-3">
                 <h4 className="alert-heading">Medicamentos con Stock Bajo</h4>
                 <ul>
-                  {lowStockMedicamentos.map((medicamento) => (
-                    <li key={medicamento.id_medicamento}>{medicamento.nombre} - {medicamento.stock} unidades</li>
-                  ))}
+                  {lowStockMedicamentos.map((lote) => (
+                    <li key={lote.id_lote}>
+                      {lote.nombre} - {lote.stock} unidades
+                    </li>
+                  ))
+                  }
                 </ul>
               </div>
               <div className="alert alert-warning mt-3">
                 <h4 className="alert-heading">Medicamentos con Fecha de Vencimiento Cercana</h4>
                 <ul>
-                  {nearExpiryMedicamentos.map((medicamento) => (
-                    <li key={medicamento.id_medicamento}>{medicamento.nombre} - {new Date(medicamento.Fecha_vencimiento).toLocaleDateString()}</li>
-                  ))}
+                  {nearExpiryMedicamentos.map((lote) => (
+                    <li key={lote.id_lote}>
+                      {lote.nombre} - {new Date(lote.fecha_vencimiento).toLocaleDateString()}
+                    </li>
+                  ))
+                  }
                 </ul>
               </div>
             </div>
@@ -478,4 +636,4 @@ function Home() {
   );
 }
 
-export default Home;
+export default Ventas;

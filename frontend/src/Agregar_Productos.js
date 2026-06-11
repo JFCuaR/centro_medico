@@ -2,7 +2,9 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import AuthContext from './AuthContext';
+import Sidebar from './sidebar'; // ← Importar 
 import './AgregarProduc.css';
+import Navbar from './Navbar';
 
 const URL = process.env.REACT_APP_URL_BACKEND || 'http://localhost:3001'
 
@@ -21,6 +23,26 @@ function Home() {
   const [relatedMedicamentos, setRelatedMedicamentos] = useState([]);
   const { logout } = useContext(AuthContext);  // Extraer la función logout del contexto
   const navigate = useNavigate();
+  const [proveedores, setProveedores] = useState([]);
+  const [proveedorId, setProveedorId] = useState('');
+  const [loteFechaVencimiento, setLoteFechaVencimiento] = useState('');
+  const [lotePrecioCompra, setLotePrecioCompra] = useState('');
+  const [lotePrecioVenta, setLotePrecioVenta] = useState('');
+  const [loteStock, setLoteStock] = useState('');
+
+
+  useEffect(() => {
+    const fetchProveedores = async () => {
+      try {
+        const response = await axios.get(`${URL}/proveedores`);
+        setProveedores(response.data);
+      } catch (error) {
+        console.error('Error al obtener proveedores:', error);
+      }
+    };
+
+    fetchProveedores();
+  }, []);
 
   const toggleSidebar = () => {
     setSidebarOpen(!isSidebarOpen);
@@ -73,204 +95,218 @@ function Home() {
     e.preventDefault();
 
     try {
-      const response = await axios.post(`${URL}/medicamentos`, {
+      // Primero crea medicamento
+      const resMed = await axios.post(`${URL}/medicamentos`, {
         codigo_barra,
         nombre,
         descripcion,
-        precio_compra,
-        precio_venta,
-        stock,
         modulo,
         tipo_venta,
-        fecha_vencimiento,
       });
-      alert('Medicamento agregado exitosamente');
+
+      const id_medicamento = resMed.data.id_medicamento;
+
+      // Luego crea el lote
+      await axios.post(`${URL}/lotes`, {
+        id_medicamento,
+        id_proveedor: proveedorId,
+        fecha_vencimiento: loteFechaVencimiento,
+        precio_compra: lotePrecioCompra,
+        precio_venta: lotePrecioVenta,
+        stock: loteStock,
+      });
+
+      alert('Medicamento y lote registrados correctamente');
     } catch (error) {
-      console.error('Hubo un error al agregar el medicamento:', error);
-      alert('Hubo un error al agregar el medicamento');
+      console.error(error);
+      alert('Error al registrar medicamento o lote');
     }
   };
+
 
   return (
     <div>
       <meta charSet="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Sidebar Template</title>
-      <link
-        href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
-        rel="stylesheet"
-      />
+      <title>Agregar Medicamento</title>
+      <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet" />
+      <script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+        defer
+      ></script>
+
       <div className={`d-flex ${isSidebarOpen ? 'toggled' : ''}`} id="wrapper">
         {/* Sidebar */}
-        <div className="bg-dark border-right" id="sidebar-wrapper">
-          <div className="sidebar-heading text-white"><br /><br />CENTRO MEDICO</div>
-          <div className="sidebar-heading text-white">JERUSALEM <br /><br /></div>
-          <div className="list-group list-group-flush">
-          <Link to="/Home" className="list-group-item list-group-item-action bg-dark text-white">
-              Inicio
-             </Link>
-             <Link to="/AgregarUsuario" className="list-group-item list-group-item-action bg-dark text-white">
-              Agregar Usuario
-             </Link>
-            <Link to="/Agregar_productos" className="list-group-item list-group-item-action bg-dark text-white">
-              Agregar Medicamentos
-            </Link>
-            <Link to="/ventas" className="list-group-item list-group-item-action bg-dark text-white">
-              Farmacia
-            </Link>
-            <Link to="/Devoluciones" className="list-group-item list-group-item-action bg-dark text-white">
-              Devoluciones
-            </Link>
-            <Link to="/Historial" className="list-group-item list-group-item-action bg-dark text-white">
-              Historial Medico
-            </Link>
-            <Link to="/Buscar_paciente" className="list-group-item list-group-item-action bg-dark text-white">
-              Buscar paciente
-            </Link>
-            <Link to="/Reportes" className="list-group-item list-group-item-action bg-dark text-white">
-              Reportes
-            </Link>
-          </div>          
-        </div>
+        <Sidebar isOpen={isSidebarOpen} />
         {/* /#sidebar-wrapper */}
-        
+
+        {isSidebarOpen && (
+          <div className="overlay" onClick={() => setSidebarOpen(false)}></div>
+        )}
+
         {/* Page Content */}
         <div id="page-content-wrapper">
-          <nav className="navbar navbar-expand-lg navbar-light bg-light border-bottom">
-            <button className="btn btn-primary" id="menu-toggle" onClick={toggleSidebar}>
-              Menu
-            </button>
-            <button className="btn btn-danger ml-auto" onClick={handleLogout}>
-              Cerrar Sesión
-            </button>
-          </nav>
+          <Navbar toggleSidebar={toggleSidebar} />
 
-          <div className="container-fluid">
-            <h2>Agregar Medicamento</h2>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Código de Barra:</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={codigo_barra}
-                  onChange={(e) => setCodigoBarra(e.target.value)}
-                  required
-                />
+          <div className="container mt-4">
+            <div className="card shadow-lg">
+              <div className="card-header bg-primary text-white">
+                <h4 className="mb-0">➕ Agregar Medicamento</h4>
               </div>
+              <div className="card-body">
+                <form onSubmit={handleSubmit}>
+                  <div className="row">
+                    <div className="col-md-4 mb-3">
+                      <label className="form-label">Código de Barra</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={codigo_barra}
+                        onChange={(e) => setCodigoBarra(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">Proveedor</label>
+                      <select
+                        className="form-select"
+                        value={proveedorId}
+                        onChange={(e) => setProveedorId(e.target.value)}
+                        required
+                      >
+                        <option value="">Seleccione un proveedor</option>
+                        {proveedores.map((prov) => (
+                          <option key={prov.id_proveedor} value={prov.id_proveedor}>
+                            {prov.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-              <div className="form-group">
-                <label>Nombre:</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={nombre}
-                  onChange={(e) => {
-                    setNombre(e.target.value);
-                    if (e.target.value.length > 2) {
-                      fetchRelatedMedicamentos(e.target.value);
-                    }
-                  }}
-                  required
-                />
-                {/* Mostrar medicamentos relacionados */}
-                {relatedMedicamentos.length > 0 && (
-                  <div>
-                    <h5>Medicamentos relacionados:</h5>
-                    <ul>
-                      {relatedMedicamentos.map((medicamento, index) => (
-                        <li key={index} onClick={() => handleSelectRelatedMedicamento(medicamento)}>
-                          {medicamento.nombre}
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="col-md-8 mb-3">
+                      <label className="form-label">Nombre</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={nombre}
+                        onChange={(e) => {
+                          setNombre(e.target.value);
+                          if (e.target.value.length > 2) {
+                            fetchRelatedMedicamentos(e.target.value);
+                          }
+                        }}
+                        required
+                      />
+                      {relatedMedicamentos.length > 0 && (
+                        <div className="mt-2 border rounded p-2 bg-light">
+                          <strong>Medicamentos relacionados:</strong>
+                          <ul className="list-group list-group-flush mt-2">
+                            {relatedMedicamentos.map((medicamento, index) => (
+                              <li
+                                key={index}
+                                className="list-group-item list-group-item-action"
+                                onClick={() =>
+                                  handleSelectRelatedMedicamento(medicamento)
+                                }
+                                style={{ cursor: 'pointer' }}
+                              >
+                                {medicamento.nombre}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="col-md-12 mb-3">
+                      <label className="form-label">Descripción</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={descripcion}
+                        onChange={(e) => setDescripcion(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-md-4 mb-3">
+                      <label className="form-label">Precio de Compra</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={lotePrecioCompra}
+                        onChange={(e) => setLotePrecioCompra(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-md-4 mb-3">
+                      <label className="form-label">Precio de Venta</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={lotePrecioVenta}
+                        onChange={(e) => setLotePrecioVenta(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-md-4 mb-3">
+                      <label className="form-label">Stock</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={loteStock}
+                        onChange={(e) => setLoteStock(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">Módulo</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={modulo}
+                        onChange={(e) => setModulo(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">Tipo de Venta</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={tipo_venta}
+                        onChange={(e) => setTipoVenta(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-md-4 mb-3">
+                      <label className="form-label">Fecha de Vencimiento</label>
+                      <input
+                        type="date"
+                        className="form-control"
+                        value={loteFechaVencimiento}
+                        onChange={(e) => setLoteFechaVencimiento(e.target.value)}
+                        required
+                      />
+                    </div>
                   </div>
-                )}
-              </div>
 
-              <div className="form-group">
-                <label>Descripción:</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
-                  required
-                />
+                  <button type="submit" className="btn btn-success">
+                    Guardar Medicamento
+                  </button>
+                </form>
               </div>
-
-              <div className="form-group">
-                <label>Precio de Compra:</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  value={precio_compra}
-                  onChange={(e) => setPrecioCompra(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Precio de Venta:</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  value={precio_venta}
-                  onChange={(e) => setPrecioVenta(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Stock:</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  value={stock}
-                  onChange={(e) => setStock(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Módulo:</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={modulo}
-                  onChange={(e) => setModulo(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Tipo de Venta:</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={tipo_venta}
-                  onChange={(e) => setTipoVenta(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Fecha de Vencimiento:</label>
-                <input
-                  type="date"
-                  className="form-control"
-                  value={fecha_vencimiento}
-                  onChange={(e) => setFechaVencimiento(e.target.value)}
-                  required
-                />
-              </div>
-
-              <button type="submit" className="btn btn-success">Agregar Medicamento</button>
-            </form>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
   );
 }
 

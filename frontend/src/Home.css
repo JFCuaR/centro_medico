@@ -82,3 +82,53 @@
     max-width: 100%;
     height: auto;
 }
+
+.sticky-header thead {
+    background-color: white;
+  }
+  .sticky-header thead th {
+    position: sticky;
+    top: 0;
+    background-color: white;
+    z-index: 10;
+  }
+  
+  
+  .table-container {
+    max-height: 900px;
+    overflow-y: auto;
+  }
+  
+  .table-wrapper {
+    max-height: 900px;      /* Ajusta según tu necesidad */
+    overflow-y: auto;
+    border: 1px solid #ccc; /* Opcional, solo para que se vea mejor */
+    border-radius: 10px;
+  }
+  
+  .sticky-header thead th {
+    position: sticky;
+    top: 0;
+    background-color: white; /* Asegura que el encabezado no se superponga con el contenido */
+    z-index: 1;               /* Se mantiene arriba del tbody */
+    box-shadow: 0 2px 2px -1px rgba(0,0,0,0.1); /* Opcional, solo para visual */
+  }
+  
+  /* Overlay oscuro solo visible en móvil */
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5); /* semi-transparente */
+    z-index: 999; /* justo debajo del sidebar (que tiene 1000) */
+    display: none;
+  }
+  
+  @media (max-width: 768px) {
+    .overlay {
+      display: block;
+    }
+  }
+  
