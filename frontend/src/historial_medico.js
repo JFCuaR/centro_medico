@@ -707,96 +707,111 @@ const avisarReanuncio = (turno) => {
                     </button>
                   </div>
 
-                  <div className="card shadow-sm mb-4">
-                    <div className="card-header bg-success text-white">
-                      <strong>Signos Vitales (Ingreso Enfermería)</strong>
-                    </div>
+               <div className="card shadow-sm mb-4">
+  <div className="card-header bg-success text-white">
+    <strong>Signos Vitales</strong>
+  </div>
 
-                    <div className="card-body">
-                      <div className="row">
-                        <div className="col-md-4 mb-3">
-                          <label>Presión arterial</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={historialMedico.presion_arterial || ''}
-                            readOnly
-                          />
-                        </div>
+  <div className="card-body">
+    <div className="row">
+      <div className="col-md-4 mb-3">
+        <label>Presión arterial</label>
+        <input
+          type="text"
+          className="form-control"
+          name="presion_arterial"
+          value={historialMedico.presion_arterial || ''}
+          onChange={handleHistorialChange}
+          placeholder="Ej: 120/80"
+        />
+      </div>
 
-                        <div className="col-md-4 mb-3">
-                          <label>Temperatura (°C)</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={historialMedico.temperatura || ''}
-                            readOnly
-                          />
-                        </div>
+      <div className="col-md-4 mb-3">
+        <label>Temperatura (°C)</label>
+        <input
+          type="text"
+          className="form-control"
+          name="temperatura"
+          value={historialMedico.temperatura || ''}
+          onChange={handleHistorialChange}
+          placeholder="Ej: 36.5"
+        />
+      </div>
 
-                        <div className="col-md-4 mb-3">
-                          <label>Frecuencia cardíaca</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={historialMedico.frecuencia_cardiaca || ''}
-                            readOnly
-                          />
-                        </div>
+      <div className="col-md-4 mb-3">
+        <label>Frecuencia cardíaca</label>
+        <input
+          type="text"
+          className="form-control"
+          name="frecuencia_cardiaca"
+          value={historialMedico.frecuencia_cardiaca || ''}
+          onChange={handleHistorialChange}
+          placeholder="Ej: 80"
+        />
+      </div>
 
-                        <div className="col-md-4 mb-3">
-                          <label>Frecuencia respiratoria</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={historialMedico.frecuencia_respiratoria || ''}
-                            readOnly
-                          />
-                        </div>
+      <div className="col-md-4 mb-3">
+        <label>Frecuencia respiratoria</label>
+        <input
+          type="text"
+          className="form-control"
+          name="frecuencia_respiratoria"
+          value={historialMedico.frecuencia_respiratoria || ''}
+          onChange={handleHistorialChange}
+          placeholder="Ej: 18"
+        />
+      </div>
 
-                        <div className="col-md-4 mb-3">
-                          <label>Saturación de oxígeno (%)</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={historialMedico.saturacion_oxigeno || ''}
-                            readOnly
-                          />
-                        </div>
+      <div className="col-md-4 mb-3">
+        <label>Saturación de oxígeno (%)</label>
+        <input
+          type="text"
+          className="form-control"
+          name="saturacion_oxigeno"
+          value={historialMedico.saturacion_oxigeno || ''}
+          onChange={handleHistorialChange}
+          placeholder="Ej: 98"
+        />
+      </div>
 
-                        <div className="col-md-4 mb-3">
-                          <label>Glucemia</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={historialMedico.glucemia || ''}
-                            readOnly
-                          />
-                        </div>
+      <div className="col-md-4 mb-3">
+        <label>Glucemia</label>
+        <input
+          type="text"
+          className="form-control"
+          name="glucemia"
+          value={historialMedico.glucemia || ''}
+          onChange={handleHistorialChange}
+          placeholder="Ej: 90"
+        />
+      </div>
 
-                        <div className="col-md-6 mb-3">
-                          <label>Peso (kg)</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={historialMedico.peso || ''}
-                            readOnly
-                          />
-                        </div>
+      <div className="col-md-6 mb-3">
+        <label>Peso (kg)</label>
+        <input
+          type="text"
+          className="form-control"
+          name="peso"
+          value={historialMedico.peso || ''}
+          onChange={handleHistorialChange}
+          placeholder="Ej: 70"
+        />
+      </div>
 
-                        <div className="col-md-6 mb-3">
-                          <label>Talla (m)</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={historialMedico.talla || ''}
-                            readOnly
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
+      <div className="col-md-6 mb-3">
+        <label>Talla (m)</label>
+        <input
+          type="text"
+          className="form-control"
+          name="talla"
+          value={historialMedico.talla || ''}
+          onChange={handleHistorialChange}
+          placeholder="Ej: 1.70"
+        />
+      </div>
+    </div>
+  </div>
+</div>
                   <div className="form-group">
                     <h4>Antecedentes</h4>
                     <div className="form-row">
