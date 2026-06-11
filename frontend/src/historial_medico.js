@@ -787,7 +787,7 @@ const avisarReanuncio = (turno) => {
       </div>
 
       <div className="col-md-6 mb-3">
-        <label>Peso (kg)</label>
+        <label>Peso (lb)</label>
         <input
           type="text"
           className="form-control"
